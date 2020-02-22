@@ -1,0 +1,7 @@
+{
+    "board": "arduino:avr:nano",
+    "configuration": "cpu=atmega328old",
+    "port": "COM7",
+    "sketch": "semaphore_signal.ino",
+    "programmer": "ArduinoISP"
+}

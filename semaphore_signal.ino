@@ -1,6 +1,7 @@
 #include <Servo.h>
 #include <math.h>
 
+int button_state = 0;
 Servo myservo;
 
 int pos = 0;    // variable to store the servo position
@@ -71,22 +72,29 @@ void sweep_servo(int start_angle, int end_angle, int duration_ms) {
 }
 
 void signal_up() {
-  sweep_servo(80, 125, 1500);
+  sweep_servo(80, 125, 1300);
 }
 
 void signal_down() {
-  sweep_servo(125, 80, 1500);
+  sweep_servo(125, 80, 1300);
 }
 
 void setup() {
   Serial.begin(115200);
   Serial.print("Hello World");
   myservo.attach(9);  // attaches the servo on pin 9 to the servo object
+
+  pinMode(4, INPUT);
 }
 
 void loop() {
-  signal_up();
-  delay(2000);
+  while(digitalRead(4) == LOW) {}
+  signal_up();  
+  while(digitalRead(4) == LOW) {}
   signal_down();
-  delay(2000);
+  // button_state = digitalRead(4);
+  // if(button_state == HIGH) {
+  //   Serial.println("Pressed!");
+  // }
+  // delay(10);
 }
