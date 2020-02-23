@@ -1,29 +1,35 @@
 #include <Servo.h>
 #include <math.h>
 
-int button_state = 0;
-Servo myservo;
 
 int pos = 0;    // variable to store the servo position
-int sweep_step_interval = 10;   //Update the servo every 10ms (100Hz).
+int sweepStepInterval = 10;   //Update the servo every 10ms (100Hz).
 
-// General servo parameters
-const int servo_min_microseconds = 700;
-const int servo_max_microseconds = 2300;
-const int servo_range_microseconds = servo_max_microseconds - servo_min_microseconds;
-const int servo_range_degrees = 180;
+// Track sensor parameters
+#define PIN_SET_DANGER 4
+
+// Servo and parameters
+Servo signalServo;
+#define PIN_SERVO 9
+const int servoMinMicroseconds = 700;
+const int servoMaxMicroseconds = 2300;
+const int servoRangeMicroseconds = servoMaxMicroseconds - servoMinMicroseconds;
+const int servoRangeDegrees = 180;
+
+// Timing parameters
+#define MINIMUM_DANGER_TIME_MS 5000
 
 // For better bounce interpolator
-const int n_bounces = 3;
-const float energy_factor = 0;
-const float energy = energy_factor + 0.5;
+const int nBounces = 3;
+const float energyFactor = 0;
+const float energy = energyFactor + 0.5;
 
 float bounce(float t) {
   return t * t * 8.0;
 }
 
 
-float bounce_interpolate(float fraction) {
+float bounceInterpolate(float fraction) {
   // Taken from Android BounceInterpolator
   // _b(t) = t * t * 8
   // bs(t) = _b(t) for t < 0.3535
@@ -42,59 +48,87 @@ float getCurveAdjustment(float  x){
     return -(2 * (1 - x) * 1 * x * energy + x * x) + 1;
   }
 
-float better_bounce_interpolate(float fraction) {
-  return (float) (1 + (-abs(cos(fraction * 10 * n_bounces /PI)) * getCurveAdjustment(fraction)));
+float betterBounceInterpolate(float fraction) {
+  return (float) (1 + (-abs(cos(fraction * 10 * nBounces /PI)) * getCurveAdjustment(fraction)));
 }
 
-int degrees_to_microseconds(float degrees) {
-  return servo_min_microseconds + ((degrees / servo_range_degrees) * servo_range_microseconds);
+int degreesToMicroseconds(float degrees) {
+  return servoMinMicroseconds + ((degrees / servoRangeDegrees) * servoRangeMicroseconds);
 }
 
-void set_servo_degrees(Servo servo, float degrees) {
+boolean isPinHigh(int pin) { 
+  return digitalRead(pin) == HIGH;
+}
+
+boolean isDangerSet() {
+  return isPinHigh(PIN_SET_DANGER);
+}
+
+void waitForDanger() {
+  while(!isDangerSet()){}
+  return;
+}
+
+void waitForClear() {
+  while(isDangerSet()){}
+  return;
+}
+
+void waitForMinimumDangerTime(){
+  delay(MINIMUM_DANGER_TIME_MS);
+}
+
+void setServoDegrees(Servo servo, float degrees) {
   // Serial.println("Setting angle: " + String(degrees, 2));
-  servo.writeMicroseconds(degrees_to_microseconds(degrees));
+  servo.writeMicroseconds(degreesToMicroseconds(degrees));
 }
 
-void sweep_servo(int start_angle, int end_angle, int duration_ms) {
-  int sweep_angle = end_angle - start_angle;
-  int n_steps = round((float) duration_ms / (float) sweep_step_interval);
-  float step_angle = (float) sweep_angle / (float) n_steps;
+void sweepServo(int startAngle, int endAngle, int durationMs) {
+  int sweepAngle = endAngle - startAngle;
+  int nSteps = round((float) durationMs / (float) sweepStepInterval);
+  float stepAngle = (float) sweepAngle / (float) nSteps;
 
-  float sweep_fraction;
-  for (int i=0; i<=n_steps; i++) {
-    sweep_fraction = (float) i / (float) n_steps;
-    float interpolated_sweep_fraction = better_bounce_interpolate(sweep_fraction);
+  float sweepFraction;
+  for (int i=0; i<=nSteps; i++) {
+    sweepFraction = (float) i / (float) nSteps;
+    float interpolatedSweepFraction = betterBounceInterpolate(sweepFraction);
     // Serial.println("Interpolated fraction: " + String(interpolated_sweep_fraction, 5));
     //myservo.write(start_angle + (round(sweep_angle * interpolated_sweep_fraction)));
-    set_servo_degrees(myservo, start_angle + (sweep_angle * interpolated_sweep_fraction));
-    delay(sweep_step_interval);
+    setServoDegrees(signalServo, startAngle + (sweepAngle * interpolatedSweepFraction));
+    delay(sweepStepInterval);
   }
 }
 
-void signal_up() {
-  sweep_servo(80, 125, 1300);
+void setToClear() {
+  sweepServo(80, 125, 1300);
 }
 
-void signal_down() {
-  sweep_servo(125, 80, 1300);
+void setToDanger() {
+  sweepServo(125, 80, 1300);
 }
 
 void setup() {
+  // Setup input pin(s)
+  pinMode(4, INPUT);
+
+  // Setup the servo(s) for the signal(s)
+  signalServo.attach(PIN_SERVO);
+  setToClear();    // Initialise the signal to the "clear" position
+
+  // Debug only
   Serial.begin(115200);
   Serial.print("Hello World");
-  myservo.attach(9);  // attaches the servo on pin 9 to the servo object
-
-  pinMode(4, INPUT);
 }
 
 void loop() {
-  while(digitalRead(4) == LOW) {}
-  signal_up();  
-  while(digitalRead(4) == LOW) {}
-  signal_down();
-  // button_state = digitalRead(4);
-  // if(button_state == HIGH) {
-  //   Serial.println("Pressed!");
-  // }
-  // delay(10);
+  // Wait for "danger" to be requested
+  waitForDanger();
+  // Set the signal to "danger"
+  setToDanger();
+  // Wait for the minimum danger time
+  delay(MINIMUM_DANGER_TIME_MS);
+  // Also wait until "clear" is requested
+  waitForClear();
+  // Return the signal to "clear"
+  setToClear();
 }
