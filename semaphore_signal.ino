@@ -6,8 +6,15 @@ int pos = 0;    // variable to store the servo position
 /********** BEGIN CONFIG **********/
 
 // Pins
-#define PIN_TRIGGER 4
-#define PIN_SERVO 9
+#define PIN_TRIGGER_A 2
+#define PIN_TRIGGER_B 3
+#define PIN_TRIGGER_C 4
+#define PIN_TRIGGER_D 5
+#define PIN_SERVO 6
+#define PIN_LED_DANGER 13
+#define TRIGGER_SAMPLING_INTERVAL 10
+#define DANGER_SAMPLE_THRESHOLD 50
+#define CLEAR_SAMPLE_THRESHOLD 100
 
 // Servo properties
 #define SERVO_RANGE_DEGREES 180
@@ -25,8 +32,6 @@ int pos = 0;    // variable to store the servo position
 #define MAXIMUM_SET_DANGER_DELAY_MS 3000
 // The minimum time the signal servo will remain in the "danger" position.
 #define MINIMUM_DANGER_TIME_MS 5000
-// How long to wait before returning to "clear" after the trigger has been released. This prevents the signal servo from returning to "clear" if the trigger is released and then set again within a short time.
-#define DANGER_GRACE_TIME_MS 2000
 
 /********** END CONFIG **********/
 
@@ -173,27 +178,46 @@ boolean isPinHigh(int pin) {
 }
 
 boolean isDangerSet() {
-  return isPinHigh(PIN_TRIGGER);
+  return isPinHigh(PIN_TRIGGER_A) || isPinHigh(PIN_TRIGGER_B) || isPinHigh(PIN_TRIGGER_C) || isPinHigh(PIN_TRIGGER_D) ;
 }
 
 void waitForDanger() {
-  while(!isDangerSet()){}
+  int count = 0;
+  while(count < DANGER_SAMPLE_THRESHOLD){
+    if(isDangerSet()){
+      count++;
+    }
+    else count = 0;
+    delay(TRIGGER_SAMPLING_INTERVAL);
+  }
   return;
 }
 
 void waitForClear() {
-  // Wait until danger is no longer set.
-  while(isDangerSet()){}
-  // After clear is set, delay an for an additional time. This filters out transient clear events.
-  waitForAdditionalDangerTime();
-  // Check if danger is still set.
-  if(isDangerSet()){  // If danger has been set during the additional time, recurse back and wait for clear to be set again.
-    waitForClear();
+  int count = 0;
+  while(count < CLEAR_SAMPLE_THRESHOLD){
+    if(!isDangerSet()){
+      count++;
+    }
+    else count = 0;
+    delay(TRIGGER_SAMPLING_INTERVAL);
   }
-  else {  //If clear is still set after the additional time, return.
-    return;
-  }
+  return;
 }
+
+// void waitForClear() {
+//   // Wait until danger is no longer set.
+//   while(isDangerSet()){}
+//   // After clear is set, delay an for an additional time. This filters out transient clear events.
+//   waitForAdditionalDangerTime();
+//   // Check if danger is still set.
+//   if(isDangerSet()){  // If danger has been set during the additional time, recurse back and wait for clear to be set again.
+//     waitForClear();
+//   }
+//   else {  //If clear is still set after the additional time, return.
+//     return;
+//   }
+// }
 
 int getRandomDelayMs(int minimumDelayMs, int maximumDelayMs) {
   int delayRange = maximumDelayMs - minimumDelayMs;
@@ -205,15 +229,11 @@ void randomDelay(int minimumDelayMs, int maximumDelayMs) {
 }
 
 void waitForMinimumDangerTime() {
-  delay(MINIMUM_DANGER_TIME_MS - DANGER_GRACE_TIME_MS);
+  delay(MINIMUM_DANGER_TIME_MS);
 }
 
 void waitForRandomSetDangerTime() {
   randomDelay(MINIMUM_SET_DANGER_DELAY_MS, MAXIMUM_SET_DANGER_DELAY_MS);
-}
-
-void waitForAdditionalDangerTime() {
-  delay(DANGER_GRACE_TIME_MS);
 }
 
 int degreesToMicroseconds(float degrees) {
@@ -240,6 +260,7 @@ void animateServo(int startAngle, int endAngle, int durationMs, float (*function
 }
 
 void setToClear() {
+  digitalWrite(PIN_LED_DANGER, LOW);
   // Pick a random animation from a set of 4.
   int animationNumber = rand() % 4;
   switch(animationNumber) {
@@ -260,6 +281,7 @@ void setToClear() {
 }
 
 void setToDanger() {
+  digitalWrite(PIN_LED_DANGER, HIGH);
   // Pick a random animation from a set of 4.
   int animationNumber = rand() % 4;
   switch(animationNumber) {
@@ -280,16 +302,26 @@ void setToDanger() {
 }
 
 void setup() {
-  // Debug only
-  // Serial.begin(115200);
-  // Serial.print("Hello World");
+  // Setup the LED indicators
+  pinMode(PIN_LED_DANGER, OUTPUT);
+
+  // Flash the danger indicator and then leave it off
+  for(int i=0; i<5; i++){
+    digitalWrite(PIN_LED_DANGER, HIGH);
+    delay(300);
+    digitalWrite(PIN_LED_DANGER, LOW);
+    delay(300);
+  }
 
   // Setup input pin(s)
-  pinMode(4, INPUT_PULLUP);
+  pinMode(PIN_TRIGGER_A, INPUT);
+  pinMode(PIN_TRIGGER_B, INPUT);
+  pinMode(PIN_TRIGGER_C, INPUT);
+  pinMode(PIN_TRIGGER_D, INPUT);
 
   // Setup the servo(s) for the signal(s)
   signalServo.attach(PIN_SERVO);
-  setServo(signalServo, SERVO_ANGLE_CLEAR);    // Initialise the signal to the "clear" position
+  setServo(signalServo, SERVO_ANGLE_CLEAR);
 }
 
 void loop() {
