@@ -6,12 +6,14 @@ int pos = 0;    // variable to store the servo position
 /********** BEGIN CONFIG **********/
 
 // Pins
+#define PIN_5V_REF A4
 #define PIN_TRIGGER_A 2
 #define PIN_TRIGGER_B 3
 #define PIN_TRIGGER_C 4
 #define PIN_TRIGGER_D 5
 #define PIN_SERVO 6
 #define PIN_LED_DANGER 13
+
 #define TRIGGER_SAMPLING_INTERVAL 10
 #define DANGER_SAMPLE_COUNT 50
 #define CLEAR_SAMPLE_COUNT 100
@@ -33,7 +35,7 @@ int pos = 0;    // variable to store the servo position
 // The minimum time the signal servo will remain in the "danger" position.
 #define MINIMUM_DANGER_TIME_MS 2000
 // Sequence delay
-#define SEQUENCE_NUMBER 0
+#define SEQUENCE_NUMBER 2
 #define SEQUENCE_DELAY 3000   // 3 seconds between each signal moving.
 
 /********** END CONFIG **********/
@@ -333,6 +335,9 @@ void flash_danger_indicator(int flashes){
 }
 
 void setup() {
+  pinMode(PIN_5V_REF, OUTPUT);
+  digitalWrite(PIN_5V_REF, HIGH);
+
   // Setup the LED indicators
   pinMode(PIN_LED_DANGER, OUTPUT);
 
